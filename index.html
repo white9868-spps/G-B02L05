@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>可愛配對翻翻樂</title>
+    <style>
+        /* 可愛風格設定 */
+        body {
+            font-family: 'Comic Sans MS', '微軟正黑體', sans-serif;
+            background-color: #FFF9E6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #FF8C00;
+            text-shadow: 2px 2px #FFE4B5;
+            margin-bottom: 10px;
+        }
+
+        .info-board {
+            background-color: #FFF;
+            border: 4px dashed #FFB6C1;
+            border-radius: 20px;
+            padding: 10px 30px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #FF69B4;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .game-container {
+            display: flex;
+            width: 100%;
+            max-width: 1200px;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .panel {
+            flex: 1;
+            background-color: #FFF;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            align-content: start;
+        }
+
+        #audio-panel {
+            background-color: #E0FFFF;
+            border: 5px solid #AFEEEE;
+        }
+
+        #image-panel {
+            background-color: #F0FFF0;
+            border: 5px solid #98FB98;
+        }
+
+        /* 音檔按鈕樣式 */
+        .audio-btn {
+            background-color: #87CEFA;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            padding: 25px 10px;
+            font-size: 22px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+            box-shadow: 0 4px #4682B4;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .audio-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 #4682B4;
+        }
+
+        .audio-btn.selected {
+            background-color: #FF69B4;
+            box-shadow: 0 4px #C71585;
+            animation: bounce 1s infinite;
+        }
+
+        /* 圖片卡片樣式 (加入翻牌定位) */
+        .image-card {
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            background-color: #FFF;
+            border: 3px solid #DDD;
+            border-radius: 15px;
+            cursor: pointer;
+            position: relative; /* 為了讓封面跟圖片可以疊加 */
+            overflow: hidden;
+            transition: transform 0.2s, border-color 0.2s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .image-card:hover {
+            transform: scale(1.05);
+            border-color: #FFD700;
+        }
+
+        /* 牌背封面 (圖 1 ~ 圖 10) */
+        .card-cover {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #FFFACD;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #DAA520;
+            z-index: 2; /* 蓋在圖片上方 */
+            transition: opacity 0.3s ease;
+        }
+
+        /* 實際圖片 */
+        .image-card img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            z-index: 1; /* 藏在封面下方 */
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        /* 翻開後的狀態：隱藏封面、顯示圖片 */
+        .image-card.revealed .card-cover {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .image-card.revealed img {
+            opacity: 1;
+        }
+
+        /* 配對成功後的狀態 */
+        .matched {
+            opacity: 0.3;
+            pointer-events: none;
+            filter: grayscale(100%);
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .panel-title {
+            grid-column: 1 / -1;
+            text-align: center;
+            color: #555;
+            margin: 0 0 15px 0;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>✨ 趣味配對翻翻樂 ✨</h1>
+    <div class="info-board">
+        ⏱️ 總時間：<span id="timer">00:00</span>
+    </div>
+
+    <div class="game-container">
+        <div id="audio-panel" class="panel">
+            <h2 class="panel-title">🎵 聽聽看</h2>
+        </div>
+
+        <div id="image-panel" class="panel">
+            <h2 class="panel-title">🖼️ 找找看</h2>
+        </div>
+    </div>
+
+    <script>
+        const soundCorrect = new Audio('正確.mp3');
+        const soundWrong = new Audio('錯誤.mp3');
+        const soundAll = new Audio('ALL.mp3');
+
+        const itemIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+        let selectedAudioId = null;
+        let matchedPairs = 0;
+        const totalPairs = itemIds.length;
+        
+        let seconds = 0;
+        let timerInterval;
+        let isTimerRunning = false;
+        const timerDisplay = document.getElementById('timer');
+        
+        let isBoardLocked = false; // 防止在錯誤動畫期間連續點擊
+
+        function formatTime(sec) {
+            const m = Math.floor(sec / 60).toString().padStart(2, '0');
+            const s = (sec % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function startTimer() {
+            if (!isTimerRunning) {
+                isTimerRunning = true;
+                timerInterval = setInterval(() => {
+                    seconds++;
+                    timerDisplay.textContent = formatTime(seconds);
+                }, 1000);
+            }
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            isTimerRunning = false;
+        }
+
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        function initGame() {
+            const audioPanel = document.getElementById('audio-panel');
+            const imagePanel = document.getElementById('image-panel');
+
+            const shuffledAudioIds = shuffleArray(itemIds);
+            const shuffledImageIds = shuffleArray(itemIds);
+
+            // 左側：音檔按鈕
+            shuffledAudioIds.forEach((id, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'audio-btn';
+                btn.dataset.id = id;
+                btn.innerHTML = `🔊<br>語音 ${index + 1}`;
+                
+                btn.addEventListener('click', () => {
+                    if (isBoardLocked) return; // 鎖定期間不允許操作
+
+                    startTimer();
+                    
+                    document.querySelectorAll('.audio-btn:not(.matched)').forEach(b => b.classList.remove('selected'));
+                    
+                    btn.classList.add('selected');
+                    selectedAudioId = id;
+                    
+                    const audio = new Audio(`s5_${id}.mp3`);
+                    audio.play();
+                });
+                
+                audioPanel.appendChild(btn);
+            });
+
+            // 右側：圖檔卡片
+            shuffledImageIds.forEach((id, index) => {
+                const card = document.createElement('div');
+                card.className = 'image-card';
+                card.dataset.id = id;
+                
+                // 產生牌背封面
+                const cover = document.createElement('div');
+                cover.className = 'card-cover';
+                cover.innerHTML = `🖼️<br>圖 ${index + 1}`;
+                card.appendChild(cover);
+
+                // 產生實際圖片
+                const img = document.createElement('img');
+                img.src = `p5_${id}.jpg`; 
+                img.alt = `圖卡 ${id}`;
+                card.appendChild(img);
+                
+                card.addEventListener('click', () => {
+                    // 如果面板鎖定中、或是卡片已經翻開/已配對，則不予理會
+                    if (isBoardLocked || card.classList.contains('revealed') || card.classList.contains('matched')) {
+                        return;
+                    }
+
+                    startTimer();
+                    
+                    if (!selectedAudioId) {
+                        alert("請先點擊左邊的喇叭聽語音喔！");
+                        return;
+                    }
+
+                    // 翻開卡片
+                    card.classList.add('revealed');
+
+                    if (parseInt(card.dataset.id) === parseInt(selectedAudioId)) {
+                        // 配對成功
+                        soundCorrect.currentTime = 0;
+                        soundCorrect.play();
+                        
+                        card.classList.add('matched');
+                        const activeAudioBtn = document.querySelector(`.audio-btn[data-id="${selectedAudioId}"]`);
+                        if(activeAudioBtn) {
+                            activeAudioBtn.classList.remove('selected');
+                            activeAudioBtn.classList.add('matched');
+                        }
+                        
+                        selectedAudioId = null;
+                        matchedPairs++;
+
+                        if (matchedPairs === totalPairs) {
+                            stopTimer();
+                            setTimeout(() => {
+                                soundAll.play();
+                                alert(`🎉 恭喜全部過關！\n⏱️ 您的過關總時間為：${formatTime(seconds)}`);
+                            }, 500);
+                        }
+                    } else {
+                        // 配對失敗
+                        isBoardLocked = true; // 鎖定面板，防止連續點擊
+                        soundWrong.currentTime = 0;
+                        soundWrong.play();
+                        
+                        const activeAudioBtn = document.querySelector('.audio-btn.selected');
+                        if(activeAudioBtn) activeAudioBtn.classList.remove('selected');
+                        selectedAudioId = null;
+
+                        // 等待 1 秒後將圖片蓋回去
+                        setTimeout(() => {
+                            card.classList.remove('revealed');
+                            isBoardLocked = false; // 解除鎖定
+                        }, 1000);
+                    }
+                });
+                
+                imagePanel.appendChild(card);
+            });
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
